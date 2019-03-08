@@ -32,6 +32,16 @@ var (
 )
 
 func mostResourceScorer(requested, allocable *schedulercache.Resource) int64 {
+	if requested.NvidiaGPU > 0 {
+		return mostRequestedScore(requested.NvidiaGPU, allocable.NvidiaGPU) +
+			(mostRequestedScore(requested.MilliCPU, allocable.MilliCPU)+
+				mostRequestedScore(requested.Memory, allocable.Memory))/2
+	}
+	if v, ok := requested.ScalarResources[NvidiaGPU]; ok && v > 0 {
+		return mostRequestedScore(v, allocable.ScalarResources[NvidiaGPU]) +
+			(mostRequestedScore(requested.MilliCPU, allocable.MilliCPU)+
+				mostRequestedScore(requested.Memory, allocable.Memory))/2
+	}
 	return (mostRequestedScore(requested.MilliCPU, allocable.MilliCPU) +
 		mostRequestedScore(requested.Memory, allocable.Memory)) / 2
 }

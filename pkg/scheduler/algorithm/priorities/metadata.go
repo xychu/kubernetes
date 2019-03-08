@@ -17,6 +17,7 @@ limitations under the License.
 package priorities
 
 import (
+	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -60,6 +61,8 @@ func (pmf *PriorityMetadataFactory) PriorityMetadata(pod *v1.Pod, nodeNameToInfo
 	if pod == nil {
 		return nil
 	}
+	glog.V(8).Infof("PriorityMetadata, Pod %v getNonZeroRequests", pod.Name)
+	//glog.V(8).Infof("PriorityMetadata, Pod %v getNonZeroRequests %v", pod.Name, getNonZeroRequests(pod))
 	return &priorityMetadata{
 		nonZeroRequest:          getNonZeroRequests(pod),
 		podTolerations:          getAllTolerationPreferNoSchedule(pod.Spec.Tolerations),
