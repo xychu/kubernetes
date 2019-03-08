@@ -17,6 +17,7 @@ limitations under the License.
 package priorities
 
 import (
+	//	"github.com/golang/glog"
 	schedulerapi "k8s.io/kubernetes/pkg/scheduler/api"
 	schedulernodeinfo "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
 )
@@ -32,6 +33,22 @@ var (
 )
 
 func mostResourceScorer(requested, allocable *schedulernodeinfo.Resource, includeVolumes bool, requestedVolumes int, allocatableVolumes int) int64 {
+	if v, ok := requested.ScalarResources[NvidiaGPU]; ok && v > 0 {
+		// for GPU node with GPU requeted, use gpuScore+10 + (cpuScore + memScore)/2
+		// which means that even one GPU is used, the score will still dominate over cpu+mem
+		return 10 + mostRequestedScore(v, allocable.ScalarResources[NvidiaGPU]) +
+			(mostRequestedScore(requested.MilliCPU, allocable.MilliCPU)+
+				mostRequestedScore(requested.Memory, allocable.Memory))/2
+	} else if v, ok := allocable.ScalarResources[NvidiaGPU]; !ok || v == 0 {
+		// for CPU node and CPU pods, use 9+10 + (cpuScore + memScore)/2
+		// so it's score will only lower than:
+		// all GPU have been requetsed:  10+10 + (cpuScore + memScore)/2
+		// and higher than other GPU node which has gpu avaliable.
+		return 19 +
+			(mostRequestedScore(requested.MilliCPU, allocable.MilliCPU)+
+				mostRequestedScore(requested.Memory, allocable.Memory))/2
+	}
+	// for GPU node without GPU requeted
 	return (mostRequestedScore(requested.MilliCPU, allocable.MilliCPU) +
 		mostRequestedScore(requested.Memory, allocable.Memory)) / 2
 }

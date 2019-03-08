@@ -28,6 +28,8 @@ import (
 	schedulernodeinfo "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
 )
 
+const NvidiaGPU v1.ResourceName = "nvidia.com/gpu"
+
 // ResourceAllocationPriority contains information to calculate resource allocation priority.
 type ResourceAllocationPriority struct {
 	Name   string
@@ -40,6 +42,7 @@ func (r *ResourceAllocationPriority) PriorityMap(
 	pod *v1.Pod,
 	meta interface{},
 	nodeInfo *schedulernodeinfo.NodeInfo) (schedulerapi.HostPriority, error) {
+	glog.V(10).Infof("%v, priorityMap for pod %v and nodeInfo %v", r.Name, pod, nodeInfo)
 	node := nodeInfo.Node()
 	if node == nil {
 		return schedulerapi.HostPriority{}, fmt.Errorf("node not found")
@@ -47,11 +50,15 @@ func (r *ResourceAllocationPriority) PriorityMap(
 	allocatable := nodeInfo.AllocatableResource()
 
 	var requested schedulernodeinfo.Resource
+	//var requested = schedulercache.Resource{}
 	if priorityMeta, ok := meta.(*priorityMetadata); ok {
-		requested = *priorityMeta.nonZeroRequest
+		//requested = *priorityMeta.nonZeroRequest
+		requested = *priorityMeta.nonZeroRequest.Clone()
+		glog.V(8).Infof("xychu %v, %v got requested from Meta, %v", r.Name, node.Name, requested)
 	} else {
 		// We couldn't parse metadata - fallback to computing it.
 		requested = *getNonZeroRequests(pod)
+		glog.V(8).Infof("%v, %v got requested from NonZeroRequest, %v", r.Name, node.Name, requested)
 	}
 
 	requested.MilliCPU += nodeInfo.NonZeroRequest().MilliCPU
@@ -84,6 +91,28 @@ func (r *ResourceAllocationPriority) PriorityMap(
 			)
 		}
 	}
+	// Add GPU requests in nodeInfo
+	if v, ok := nodeInfo.RequestedResource().ScalarResources[NvidiaGPU]; ok && v > 0 {
+		glog.V(8).Infof("%v, %v got requested from nodeInfo, %v", r.Name, node.Name, nodeInfo.RequestedResource())
+		requested.AddScalar(NvidiaGPU, v)
+	}
+
+	glog.V(10).Infof(
+		"%v -> %v: %v, total request %d millicores %d memory bytes %d GPU",
+		pod.Name, node.Name, r.Name,
+		requested.MilliCPU, requested.Memory,
+		requested.ScalarResources[NvidiaGPU],
+	)
+	score := r.scorer(&requested, &allocatable)
+
+	glog.V(10).Infof(
+		"%v -> %v: %v, capacity %d millicores %d memory bytes %d GPU, total request %d millicores %d memory bytes %d GPU, score %d",
+		pod.Name, node.Name, r.Name,
+		allocatable.MilliCPU, allocatable.Memory, allocatable.ScalarResources[NvidiaGPU],
+		requested.MilliCPU, requested.Memory,
+		requested.ScalarResources[NvidiaGPU],
+		score,
+	)
 
 	return schedulerapi.HostPriority{
 		Host:  node.Name,
@@ -98,6 +127,11 @@ func getNonZeroRequests(pod *v1.Pod) *schedulernodeinfo.Resource {
 		cpu, memory := priorityutil.GetNonzeroRequests(&container.Resources.Requests)
 		result.MilliCPU += cpu
 		result.Memory += memory
+
+		if quantity, found := (container.Resources.Requests)[NvidiaGPU]; found {
+			result.AddScalar(NvidiaGPU, quantity.Value())
+		}
 	}
 	return result
+
 }

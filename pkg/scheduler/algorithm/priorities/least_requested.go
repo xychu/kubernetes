@@ -34,6 +34,11 @@ var (
 )
 
 func leastResourceScorer(requested, allocable *schedulernodeinfo.Resource, includeVolumes bool, requestedVolumes int, allocatableVolumes int) int64 {
+	if v, ok := requested.ScalarResources[NvidiaGPU]; ok && v > 0 {
+		return leastRequestedScore(v, allocable.ScalarResources[NvidiaGPU]) +
+			(leastRequestedScore(requested.MilliCPU, allocable.MilliCPU)+
+				leastRequestedScore(requested.Memory, allocable.Memory))/2
+	}
 	return (leastRequestedScore(requested.MilliCPU, allocable.MilliCPU) +
 		leastRequestedScore(requested.Memory, allocable.Memory)) / 2
 }
