@@ -49,8 +49,9 @@ func (r *ResourceAllocationPriority) PriorityMap(
 
 	var requested = schedulercache.Resource{}
 	if priorityMeta, ok := meta.(*priorityMetadata); ok {
-		requested = *priorityMeta.nonZeroRequest
-		glog.V(8).Infof("%v, %v got requested from Meta, %v", r.Name, node.Name, requested)
+		//requested = *priorityMeta.nonZeroRequest
+		requested = *priorityMeta.nonZeroRequest.Clone()
+		glog.V(8).Infof("xychu %v, %v got requested from Meta, %v", r.Name, node.Name, requested)
 	} else {
 		// We couldn't parse metadata - fallback to computing it.
 		requested = *getNonZeroRequests(pod)
