@@ -1,0 +1,24 @@
+{
+"kind" : "Policy",
+"apiVersion" : "v1",
+"predicates" : [
+	{"name" : "NoVolumeZoneConflict"},
+	{"name" : "MatchInterPodAffinity"},
+	{"name" : "NoDiskConflict"},
+	{"name" : "GeneralPredicates"},
+	{"name" : "CheckNodeMemoryPressure"},
+	{"name" : "CheckNodeDiskPressure"},
+	{"name" : "CheckNodeCondition"},
+	{"name" : "PodToleratesNodeTaints"},
+	{"name" : "CheckVolumeBinding"},
+	{"name" : "PodFitsResources"},
+	{"name" : "MatchNodeSelector"},
+	{"name" : "HostName"}
+	],
+"priorities" : [
+	{"name" : "NodeAffinityPriority", "weight" : 3},
+	{"name" : "MostRequestedPriority", "weight" : 1},
+	{"name" : "InterPodAffinityPriority", "weight" : 1},
+	{"name" : "ImageLocalityPriority", "weight" : 1}
+	]
+}
