@@ -703,6 +703,7 @@ func PrioritizeNodes(
 			}
 
 			var err error
+			klog.V(10).Infof("xychu start map index %v on pod %v node %v", index, pod.Name, nodes[index].Name)
 			results[i][index], err = priorityConfigs[i].Map(pod, meta, nodeInfo)
 			if err != nil {
 				appendError(err)
@@ -779,6 +780,7 @@ func PrioritizeNodes(
 	if klog.V(10) {
 		for i := range result {
 			klog.Infof("Host %s => Score %d", result[i].Host, result[i].Score)
+			klog.V(10).Infof("xychu Host %s => Score %d", result[i].Host, result[i].Score)
 		}
 	}
 	return result, nil
