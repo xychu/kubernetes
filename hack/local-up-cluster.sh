@@ -827,10 +827,12 @@ function start_kubescheduler {
       --v=${LOG_LEVEL} \
       --leader-elect=false \
       --kubeconfig "${CERT_DIR}"/scheduler.kubeconfig \
+      --policy-config-file="/home/ethanchu/Workspace/go/src/k8s.io/kubernetes/policy-config.json" \
       --feature-gates="${FEATURE_GATES}" \
       --master="https://${API_HOST}:${API_SECURE_PORT}" >"${SCHEDULER_LOG}" 2>&1 &
     SCHEDULER_PID=$!
 }
+
 
 function start_kubedns {
     if [[ "${ENABLE_CLUSTER_DNS}" = true ]]; then

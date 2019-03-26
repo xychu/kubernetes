@@ -17,7 +17,6 @@ limitations under the License.
 package priorities
 
 import (
-	//	"github.com/golang/glog"
 	schedulerapi "k8s.io/kubernetes/pkg/scheduler/api"
 	schedulernodeinfo "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
 )

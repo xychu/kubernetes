@@ -21,6 +21,7 @@ import (
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/klog"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	schedulerapi "k8s.io/kubernetes/pkg/scheduler/api"
 	schedulernodeinfo "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
@@ -67,6 +68,7 @@ func CalculateNodeAffinityPriorityMap(pod *v1.Pod, meta interface{}, nodeInfo *s
 		}
 	}
 
+	klog.V(10).Infof("xychu nodeAffinity score %v for pod %v and node %v", count, pod.Name, nodeInfo.Node().Name)
 	return schedulerapi.HostPriority{
 		Host:  node.Name,
 		Score: int(count),
