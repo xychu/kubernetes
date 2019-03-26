@@ -19,6 +19,7 @@ package priorities
 import (
 	"fmt"
 
+	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
@@ -68,6 +69,7 @@ func CalculateNodeAffinityPriorityMap(pod *v1.Pod, meta interface{}, nodeInfo *s
 		}
 	}
 
+	glog.V(10).Infof("xychu nodeAffinity score %v for pod %v and node %v", count, pod.Name, nodeInfo.Node().Name)
 	return schedulerapi.HostPriority{
 		Host:  node.Name,
 		Score: int(count),

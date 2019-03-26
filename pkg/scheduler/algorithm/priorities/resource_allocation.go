@@ -40,14 +40,14 @@ func (r *ResourceAllocationPriority) PriorityMap(
 	pod *v1.Pod,
 	meta interface{},
 	nodeInfo *schedulercache.NodeInfo) (schedulerapi.HostPriority, error) {
-	glog.V(10).Infof("%v, priorityMap for pod %v and nodeInfo %v", r.Name, pod, nodeInfo)
+	glog.V(10).Infof("xychu %v, priorityMap for pod %v and nodeInfo %v", r.Name, pod, nodeInfo)
 	node := nodeInfo.Node()
 	if node == nil {
 		return schedulerapi.HostPriority{}, fmt.Errorf("node not found")
 	}
 	allocatable := nodeInfo.AllocatableResource()
 
-	var requested = schedulercache.Resource{}
+	var requested schedulercache.Resource
 	if priorityMeta, ok := meta.(*priorityMetadata); ok {
 		//requested = *priorityMeta.nonZeroRequest
 		requested = *priorityMeta.nonZeroRequest.Clone()
@@ -55,7 +55,7 @@ func (r *ResourceAllocationPriority) PriorityMap(
 	} else {
 		// We couldn't parse metadata - fallback to computing it.
 		requested = *getNonZeroRequests(pod)
-		glog.V(8).Infof("%v, %v got requested from NonZeroRequest, %v", r.Name, node.Name, requested)
+		glog.V(8).Infof("xychu %v, %v got requested from NonZeroRequest, %v", r.Name, node.Name, requested)
 	}
 
 	requested.MilliCPU += nodeInfo.NonZeroRequest().MilliCPU
@@ -64,12 +64,12 @@ func (r *ResourceAllocationPriority) PriorityMap(
 	// Add GPU requests in nodeInfo
 	requested.NvidiaGPU += nodeInfo.RequestedResource().NvidiaGPU
 	if v, ok := nodeInfo.RequestedResource().ScalarResources[NvidiaGPU]; ok && v > 0 {
-		glog.V(8).Infof("%v, %v got requested from nodeInfo, %v", r.Name, node.Name, nodeInfo.RequestedResource())
+		glog.V(8).Infof("xychu %v, %v got requested from nodeInfo, %v", r.Name, node.Name, nodeInfo.RequestedResource())
 		requested.AddScalar(NvidiaGPU, v)
 	}
 
 	glog.V(10).Infof(
-		"%v -> %v: %v, total request %d millicores %d memory bytes %d v1GPU %d v2GPU",
+		"xychu %v -> %v: %v, total request %d millicores %d memory bytes %d v1GPU %d v2GPU",
 		pod.Name, node.Name, r.Name,
 		requested.MilliCPU, requested.Memory,
 		requested.NvidiaGPU, requested.ScalarResources[NvidiaGPU],
@@ -77,7 +77,7 @@ func (r *ResourceAllocationPriority) PriorityMap(
 	score := r.scorer(&requested, &allocatable)
 
 	glog.V(10).Infof(
-		"%v -> %v: %v, capacity %d millicores %d memory bytes %d v1GPU %d v2GPU, total request %d millicores %d memory bytes %d v1GPU %d v2GPU, score %d",
+		"xychu %v -> %v: %v, capacity %d millicores %d memory bytes %d v1GPU %d v2GPU, total request %d millicores %d memory bytes %d v1GPU %d v2GPU, score %d",
 		pod.Name, node.Name, r.Name,
 		allocatable.MilliCPU, allocatable.Memory, allocatable.NvidiaGPU, allocatable.ScalarResources[NvidiaGPU],
 		requested.MilliCPU, requested.Memory,
@@ -92,6 +92,7 @@ func (r *ResourceAllocationPriority) PriorityMap(
 }
 
 func getNonZeroRequests(pod *v1.Pod) *schedulercache.Resource {
+	glog.V(10).Infof("xychu start pod %v GetNonzeroRequests", pod.Name)
 	result := &schedulercache.Resource{}
 	for i := range pod.Spec.Containers {
 		container := &pod.Spec.Containers[i]
@@ -106,6 +107,8 @@ func getNonZeroRequests(pod *v1.Pod) *schedulercache.Resource {
 			result.AddScalar(NvidiaGPU, quantity.Value())
 		}
 	}
+
+	glog.V(10).Infof("xychu end pod %v GetNonzeroRequests %v", pod.Name, result)
 	return result
 
 }
