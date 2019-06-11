@@ -1935,6 +1935,20 @@ const (
 	PullIfNotPresent PullPolicy = "IfNotPresent"
 )
 
+// PreemptionPolicy describes a policy for if/when to preempt a pod.
+type PreemptionPolicy string
+
+const (
+	// PreemptLowerPriority means that pod can preempt other pods with lower priority.
+	PreemptLowerPriority PreemptionPolicy = "PreemptLowerPriority"
+	// PreemptNever means that pod never preempts other pods with lower priority.
+	PreemptNever PreemptionPolicy = "Never"
+	// NonPreemptible means that pod can not be preempted by other pods with higher priority.
+	NonPreemptible PreemptionPolicy = "NonPreemptible"
+	// PreemptNeverNonPreemptible means that pod never preempts other pods with lower priority and can not be preempted by other pods with higher priority.
+	PreemptNeverNonPreemptible PreemptionPolicy = "PreemptNeverNonPreemptible"
+)
+
 // TerminationMessagePolicy describes how termination messages are retrieved from a container.
 type TerminationMessagePolicy string
 
@@ -2680,6 +2694,12 @@ type PodSpec struct {
 	// If not specified, the default is true.
 	// +optional
 	EnableServiceLinks *bool
+	// PreemptionPolicy is the Policy for pod preemption.
+	// One of Never, PreemptLowerPriority, NonPreemptible, NeverPreemptNonPreemptible.
+	// Defaults to PreemptLowerPriority if unset.
+	// This field is alpha-level and is only honored by servers that enable the NonPreemptingPriority feature.
+	// +optional
+	PreemptionPolicy *PreemptionPolicy
 }
 
 // HostAlias holds the mapping between IP and hostnames that will be injected as an entry in the

@@ -135,6 +135,11 @@ if [ "${ENABLE_POD_PRIORITY_PREEMPTION}" == true ]; then
     FEATURE_GATES="${FEATURE_GATES},PodPriority=true"
 fi
 
+# set feature gates if enable preemptionPolicy
+if [ "${ENABLE_PREEMPTION_POLICY}" == true ]; then
+    FEATURE_GATES="${FEATURE_GATES},NonPreemptingPriority=true"
+fi
+
 # warn if users are running with swap allowed
 if [ "${FAIL_SWAP_ON}" == "false" ]; then
     echo "WARNING : The kubelet is configured to not fail even if swap is enabled; production deployments should disable swap."

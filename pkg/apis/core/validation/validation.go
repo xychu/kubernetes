@@ -2638,6 +2638,18 @@ func validateRestartPolicy(restartPolicy *core.RestartPolicy, fldPath *field.Pat
 	return allErrors
 }
 
+func ValidatePreemptionPolicy(preemptionPolicy *core.PreemptionPolicy, fldPath *field.Path) field.ErrorList {
+	allErrors := field.ErrorList{}
+	switch *preemptionPolicy {
+	case core.PreemptLowerPriority, core.PreemptNever, core.PreemptNeverNonPreemptible, core.NonPreemptible:
+	default:
+		validValues := []string{string(core.PreemptLowerPriority), string(core.PreemptNever),
+			string(core.PreemptNeverNonPreemptible), string(core.NonPreemptible)}
+		allErrors = append(allErrors, field.NotSupported(fldPath, preemptionPolicy, validValues))
+	}
+	return allErrors
+}
+
 func validateDNSPolicy(dnsPolicy *core.DNSPolicy, fldPath *field.Path) field.ErrorList {
 	allErrors := field.ErrorList{}
 	switch *dnsPolicy {
@@ -3012,6 +3024,10 @@ func ValidatePodSpec(spec *core.PodSpec, fldPath *field.Path) field.ErrorList {
 
 	if spec.RuntimeClassName != nil {
 		allErrs = append(allErrs, ValidateRuntimeClassName(*spec.RuntimeClassName, fldPath.Child("runtimeClassName"))...)
+	}
+
+	if spec.PreemptionPolicy != nil {
+		allErrs = append(allErrs, ValidatePreemptionPolicy(spec.PreemptionPolicy, fldPath.Child("preemptionPolicy"))...)
 	}
 
 	return allErrs

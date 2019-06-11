@@ -26,8 +26,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"k8s.io/klog"
-
 	"k8s.io/api/core/v1"
 	policy "k8s.io/api/policy/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/errors"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm/priorities"
@@ -147,6 +146,7 @@ type genericScheduler struct {
 	pdbLister                algorithm.PDBLister
 	disablePreemption        bool
 	percentageOfNodesToScore int32
+	enableNonPreempting      bool
 }
 
 // snapshot snapshots scheduler cache and node infos for all fit and priority
@@ -292,7 +292,7 @@ func (g *genericScheduler) Preempt(pod *v1.Pod, nodeLister algorithm.NodeLister,
 	if !ok || fitError == nil {
 		return nil, nil, nil, nil
 	}
-	if !podEligibleToPreemptOthers(pod, g.nodeInfoSnapshot.NodeInfoMap) {
+	if !podEligibleToPreemptOthers(pod, g.nodeInfoSnapshot.NodeInfoMap, g.enableNonPreempting) {
 		klog.V(5).Infof("Pod %v/%v is not eligible for more preemption.", pod.Namespace, pod.Name)
 		return nil, nil, nil, nil
 	}
@@ -314,7 +314,7 @@ func (g *genericScheduler) Preempt(pod *v1.Pod, nodeLister algorithm.NodeLister,
 		return nil, nil, nil, err
 	}
 	nodeToVictims, err := selectNodesForPreemption(pod, g.nodeInfoSnapshot.NodeInfoMap, potentialNodes, g.predicates,
-		g.predicateMetaProducer, g.schedulingQueue, pdbs)
+		g.predicateMetaProducer, g.schedulingQueue, pdbs, g.enableNonPreempting)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -780,7 +780,6 @@ func PrioritizeNodes(
 	if klog.V(10) {
 		for i := range result {
 			klog.Infof("Host %s => Score %d", result[i].Host, result[i].Score)
-			klog.V(10).Infof("xychu Host %s => Score %d", result[i].Host, result[i].Score)
 		}
 	}
 	return result, nil
@@ -922,6 +921,7 @@ func selectNodesForPreemption(pod *v1.Pod,
 	metadataProducer predicates.PredicateMetadataProducer,
 	queue internalqueue.SchedulingQueue,
 	pdbs []*policy.PodDisruptionBudget,
+	enableNonPreempting bool,
 ) (map[*v1.Node]*schedulerapi.Victims, error) {
 	nodeToVictims := map[*v1.Node]*schedulerapi.Victims{}
 	var resultLock sync.Mutex
@@ -934,7 +934,7 @@ func selectNodesForPreemption(pod *v1.Pod,
 		if meta != nil {
 			metaCopy = meta.ShallowCopy()
 		}
-		pods, numPDBViolations, fits := selectVictimsOnNode(pod, metaCopy, nodeNameToInfo[nodeName], fitPredicates, queue, pdbs)
+		pods, numPDBViolations, fits := selectVictimsOnNode(pod, metaCopy, nodeNameToInfo[nodeName], fitPredicates, queue, pdbs, enableNonPreempting)
 		if fits {
 			resultLock.Lock()
 			victims := schedulerapi.Victims{
@@ -1010,6 +1010,7 @@ func selectVictimsOnNode(
 	fitPredicates map[string]predicates.FitPredicate,
 	queue internalqueue.SchedulingQueue,
 	pdbs []*policy.PodDisruptionBudget,
+	enableNonPreempting bool,
 ) ([]*v1.Pod, int, bool) {
 	if nodeInfo == nil {
 		return nil, 0, false
@@ -1033,6 +1034,10 @@ func selectVictimsOnNode(
 	// check if the given pod can be scheduled.
 	podPriority := util.GetPodPriority(pod)
 	for _, p := range nodeInfoCopy.Pods() {
+		if enableNonPreempting && p.Spec.PreemptionPolicy != nil && (*p.Spec.PreemptionPolicy == v1.NonPreemptible || *p.Spec.PreemptionPolicy == v1.PreemptNeverNonPreemptible) {
+			klog.V(5).Infof("Pod %v/%v is not eligible for being preempted because it has a preemptionPolicy of %v", p.Namespace, p.Name, *p.Spec.PreemptionPolicy)
+			continue
+		}
 		if util.GetPodPriority(p) < podPriority {
 			potentialVictims.Items = append(potentialVictims.Items, p)
 			removePod(p)
@@ -1130,7 +1135,11 @@ func nodesWherePreemptionMightHelp(nodes []*v1.Node, failedPredicatesMap FailedP
 // considered for preemption.
 // We look at the node that is nominated for this pod and as long as there are
 // terminating pods on the node, we don't consider this for preempting more pods.
-func podEligibleToPreemptOthers(pod *v1.Pod, nodeNameToInfo map[string]*schedulernodeinfo.NodeInfo) bool {
+func podEligibleToPreemptOthers(pod *v1.Pod, nodeNameToInfo map[string]*schedulernodeinfo.NodeInfo, enableNonPreempting bool) bool {
+	if enableNonPreempting && pod.Spec.PreemptionPolicy != nil && (*pod.Spec.PreemptionPolicy == v1.PreemptNever || *pod.Spec.PreemptionPolicy == v1.PreemptNeverNonPreemptible) {
+		klog.V(5).Infof("Pod %v/%v is not eligible for preemption because it has a preemptionPolicy of %v", pod.Namespace, pod.Name, *pod.Spec.PreemptionPolicy)
+		return false
+	}
 	nomNodeName := pod.Status.NominatedNodeName
 	if len(nomNodeName) > 0 {
 		if nodeInfo, found := nodeNameToInfo[nomNodeName]; found {
@@ -1187,6 +1196,7 @@ func NewGenericScheduler(
 	alwaysCheckAllPredicates bool,
 	disablePreemption bool,
 	percentageOfNodesToScore int32,
+	enableNonPreempting bool,
 ) ScheduleAlgorithm {
 	return &genericScheduler{
 		cache:                    cache,
@@ -1204,5 +1214,6 @@ func NewGenericScheduler(
 		alwaysCheckAllPredicates: alwaysCheckAllPredicates,
 		disablePreemption:        disablePreemption,
 		percentageOfNodesToScore: percentageOfNodesToScore,
+		enableNonPreempting:      enableNonPreempting,
 	}
 }
