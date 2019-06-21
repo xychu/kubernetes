@@ -90,6 +90,9 @@ const (
 	// CheckNodeDiskPressurePred defines the name of predicate CheckNodeDiskPressure.
 	CheckNodeDiskPressurePred = "CheckNodeDiskPressure"
 
+	// CheckGPUReservedResourcePred defines the name of predicate CheckGPUReservedResource.
+	CheckGPUReservedResourcePred = "CheckGPUReservedResource"
+
 	// DefaultMaxEBSVolumes is the limit for volumes attached to an instance.
 	// Amazon recommends no more than 40; the system root volume uses at least one.
 	// See http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/volume_limits.html#linux-specific-volume-limits
@@ -111,6 +114,10 @@ const (
 	GCEPDVolumeFilterType = "GCE"
 	// AzureDiskVolumeFilterType defines the filter name for AzureDiskVolumeFilter.
 	AzureDiskVolumeFilterType = "AzureDisk"
+
+	NvidiaGPU         v1.ResourceName = "nvidia.com/gpu"
+	CPUReservedPerGPU int64           = 4
+	MEMReservedPerGPU int64           = 8
 )
 
 // IMPORTANT NOTE for predicate developers:
@@ -129,7 +136,7 @@ const (
 var (
 	predicatesOrdering = []string{CheckNodeConditionPred, CheckNodeUnschedulablePred,
 		GeneralPred, HostNamePred, PodFitsHostPortsPred,
-		MatchNodeSelectorPred, PodFitsResourcesPred, NoDiskConflictPred,
+		MatchNodeSelectorPred, PodFitsResourcesPred, CheckGPUReservedResourcePred, NoDiskConflictPred,
 		PodToleratesNodeTaintsPred, PodToleratesNodeNoExecuteTaintsPred, CheckNodeLabelPresencePred,
 		CheckServiceAffinityPred, MaxEBSVolumeCountPred, MaxGCEPDVolumeCountPred,
 		MaxAzureDiskVolumeCountPred, CheckVolumeBindingPred, NoVolumeZoneConflictPred,
@@ -772,6 +779,57 @@ func PodFitsResources(pod *v1.Pod, meta algorithm.PredicateMetadata, nodeInfo *s
 			// not logged. There is visible performance gain from it.
 			glog.Infof("Schedule Pod %+v on Node %+v is allowed, Node is running only %v out of %v Pods.",
 				podName(pod), node.Name, len(nodeInfo.Pods()), allowedPodNumber)
+		}
+	}
+	return len(predicateFails) == 0, predicateFails, nil
+}
+
+// GPUReservedResource checks if a node has sufficient cpu/mem resources reserved for GPU.
+func GPUReservedResource(pod *v1.Pod, meta algorithm.PredicateMetadata, nodeInfo *schedulercache.NodeInfo) (bool, []algorithm.PredicateFailureReason, error) {
+	node := nodeInfo.Node()
+	if node == nil {
+		return false, nil, fmt.Errorf("node not found")
+	}
+
+	var predicateFails []algorithm.PredicateFailureReason
+
+	var podRequest *schedulercache.Resource
+	if predicateMeta, ok := meta.(*predicateMetadata); ok {
+		podRequest = predicateMeta.podRequest
+	} else {
+		// We couldn't parse metadata - fallback to computing it.
+		podRequest = GetResourceRequest(pod)
+	}
+
+	allocatable := nodeInfo.AllocatableResource()
+
+	if allocatableGPU, okay := allocatable.ScalarResources[NvidiaGPU]; !okay || allocatableGPU == 0 {
+		glog.V(10).Infof("GPUReservedResource pred skipped. Node %v No GPU allocate %d", node.Name, allocatableGPU)
+		return len(predicateFails) == 0, predicateFails, nil
+	}
+
+	var requestedGPU int64
+	if v, okay := podRequest.ScalarResources[NvidiaGPU]; okay {
+		requestedGPU = v
+	}
+
+	idleGPU := allocatable.ScalarResources[NvidiaGPU] - requestedGPU - nodeInfo.RequestedResource().ScalarResources[NvidiaGPU]
+	glog.V(10).Infof("GPUReservedResource pred idleGPU %d", idleGPU)
+	if idleGPU > 0 {
+		if allocatable.MilliCPU < podRequest.MilliCPU+nodeInfo.RequestedResource().MilliCPU+CPUReservedPerGPU*1000*idleGPU {
+			predicateFails = append(predicateFails, NewInsufficientGPUReservedResourceError(v1.ResourceCPU, podRequest.MilliCPU, nodeInfo.RequestedResource().MilliCPU, allocatable.MilliCPU, idleGPU))
+		}
+		if allocatable.Memory < podRequest.Memory+nodeInfo.RequestedResource().Memory+MEMReservedPerGPU*1024*1024*1024*idleGPU {
+			predicateFails = append(predicateFails, NewInsufficientGPUReservedResourceError(v1.ResourceMemory, podRequest.Memory, nodeInfo.RequestedResource().Memory, allocatable.Memory, idleGPU))
+		}
+	}
+
+	if glog.V(10) {
+		if len(predicateFails) == 0 {
+			// We explicitly don't do glog.V(10).Infof() to avoid computing all the parameters if this is
+			// not logged. There is visible performance gain from it.
+			glog.Infof("GPUReservedResource Schedule Pod %+v on Node %+v is allowed, Node requested %v out of allocatable %v.",
+				podName(pod), node.Name, allocatable, nodeInfo.RequestedResource())
 		}
 	}
 	return len(predicateFails) == 0, predicateFails, nil

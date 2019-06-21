@@ -70,6 +70,8 @@ func init() {
 	// This predicate is actually a default predicate, because it is invoked from
 	// predicates.GeneralPredicates()
 	factory.RegisterFitPredicate(predicates.PodFitsResourcesPred, predicates.PodFitsResources)
+	// Fit is determined by GPU reserved resource availability.
+	factory.RegisterFitPredicate(predicates.CheckGPUReservedResourcePred, predicates.GPUReservedResource)
 	// Fit is determined by the presence of the Host parameter and a string match
 	// This predicate is actually a default predicate, because it is invoked from
 	// predicates.GeneralPredicates()
