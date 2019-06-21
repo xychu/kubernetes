@@ -9,6 +9,7 @@
 	{"name" : "PodToleratesNodeTaints"},
 	{"name" : "CheckVolumeBinding"},
 	{"name" : "PodFitsResources"},
+	{"name" : "CheckGPUReservedResource"},
 	{"name" : "MatchNodeSelector"},
 	{"name" : "HostName"}
 	],

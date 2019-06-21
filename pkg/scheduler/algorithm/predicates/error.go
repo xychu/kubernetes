@@ -115,6 +115,43 @@ func (e *InsufficientResourceError) GetInsufficientAmount() int64 {
 	return e.requested - (e.capacity - e.used)
 }
 
+// InsufficientGPUReservedResourceError is an error type that indicates what kind of resource limit is
+// hit and caused the unfitting failure.
+type InsufficientGPUReservedResourceError struct {
+	// resourceName is the name of the resource that is insufficient
+	ResourceName v1.ResourceName
+	requested    int64
+	used         int64
+	capacity     int64
+	idleGPU      int64
+}
+
+// NewInsufficientResourceError returns an InsufficientResourceError.
+func NewInsufficientGPUReservedResourceError(resourceName v1.ResourceName, requested, used, capacity, idleGPU int64) *InsufficientGPUReservedResourceError {
+	return &InsufficientGPUReservedResourceError{
+		ResourceName: resourceName,
+		requested:    requested,
+		used:         used,
+		capacity:     capacity,
+		idleGPU:      idleGPU,
+	}
+}
+
+func (e *InsufficientGPUReservedResourceError) Error() string {
+	return fmt.Sprintf("Node didn't have enough GPU reserved resource: %s, requested: %d, used: %d, capacity: %d, idleGPU: %d",
+		e.ResourceName, e.requested, e.used, e.capacity, e.idleGPU)
+}
+
+// GetReason returns the reason of the InsufficientResourceError.
+func (e *InsufficientGPUReservedResourceError) GetReason() string {
+	return fmt.Sprintf("Insufficient GPU Reserved %v", e.ResourceName)
+}
+
+// GetInsufficientAmount returns the amount of the insufficient resource of the error.
+func (e *InsufficientGPUReservedResourceError) GetInsufficientAmount() int64 {
+	return e.requested - (e.capacity - e.used)
+}
+
 // PredicateFailureError describes a failure error of predicate.
 type PredicateFailureError struct {
 	PredicateName string
