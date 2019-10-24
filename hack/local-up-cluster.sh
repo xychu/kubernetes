@@ -844,10 +844,18 @@ function start_kubescheduler {
       --v="${LOG_LEVEL}" \
       --leader-elect=false \
       --kubeconfig "${CERT_DIR}"/scheduler.kubeconfig \
+      --config="/home/ethanchu/Workspace/go/src/k8s.io/kubernetes/scheduler-config.yaml" \
       --feature-gates="${FEATURE_GATES}" \
       --master="https://${API_HOST}:${API_SECURE_PORT}" >"${SCHEDULER_LOG}" 2>&1 &
     SCHEDULER_PID=$!
 }
+
+      #--client-ca-file="/home/ethanchu/Workspace/go/src/k8s.io/kubernetes/cert_dir/client-ca.crt" \
+      #--cert-dir "${CERT_DIR}" \
+      #--tls-cert-file="/home/ethanchu/Workspace/go/src/k8s.io/kubernetes/cert_dir/server-ca.crt" \
+      #--tls-private-key-file="/home/ethanchu/Workspace/go/src/k8s.io/kubernetes/cert_dir/server-ca.key" \
+      #--authentication-kubeconfig "${CERT_DIR}"/admin.kubeconfig \
+      #--authorization-kubeconfig "${CERT_DIR}"/admin.kubeconfig \
 
 function start_kubedns {
     if [[ "${ENABLE_CLUSTER_DNS}" = true ]]; then
