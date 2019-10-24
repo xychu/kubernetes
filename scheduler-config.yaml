@@ -1,0 +1,11 @@
+apiVersion: kubescheduler.config.k8s.io/v1alpha1
+kind: KubeSchedulerConfiguration
+clientConnection:
+  kubeconfig: "/home/ethanchu/Workspace/go/src/k8s.io/kubernetes/cert_dir/admin.kubeconfig"
+plugins:
+  reserve:
+    enabled:
+    - name: coscheduling-plugin
+  permit:
+    enabled:
+    - name: coscheduling-plugin
