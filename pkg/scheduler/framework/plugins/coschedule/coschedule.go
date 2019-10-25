@@ -32,7 +32,7 @@ type CoschedulingPlugin struct {
 	handle framework.FrameworkHandle
 }
 
-var _ = framework.ReservePlugin(CoschedulingPlugin{})
+//var _ = framework.ReservePlugin(CoschedulingPlugin{})
 var _ = framework.PermitPlugin(CoschedulingPlugin{})
 
 // Name is the name of the plug used in Registry and configurations.
@@ -41,48 +41,6 @@ const Name = "coscheduling-plugin"
 // Name returns name of the plugin. It is used in logs, etc.
 func (mc CoschedulingPlugin) Name() string {
 	return Name
-}
-
-type stateData struct {
-	readyCount int32
-	readyPods  []string
-}
-
-func (f *stateData) Clone() framework.StateData {
-	copy := &stateData{
-		readyCount: f.readyCount,
-		readyPods:  append(f.readyPods[:0:0], f.readyPods...),
-	}
-	return copy
-}
-
-// Reserve is the functions invoked by the framework at "reserve" extension point.
-func (mc CoschedulingPlugin) Reserve(state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
-	msg := fmt.Sprintf("xychu: in reserve %s", pod.Name)
-	klog.V(0).Infof(msg)
-	if pod == nil {
-		return framework.NewStatus(framework.Error, "pod cannot be nil")
-	}
-	if name, okay := pod.ObjectMeta.Annotations["coschedule-name"]; okay {
-		state.Lock()
-		if v, e := state.Read(framework.StateKey(name)); e == nil {
-			if value, ok := v.(*stateData); ok {
-				value.readyCount += 1
-				value.readyPods = append(value.readyPods, pod.Name)
-				state.Write(framework.StateKey(name), value)
-				msg := fmt.Sprintf("xychu: in reserve %s update state %v", pod.Name, value)
-				klog.V(0).Infof(msg)
-			}
-		} else {
-			state.Write(framework.StateKey(name), &stateData{
-				readyCount: 1,
-				readyPods:  []string{pod.Name}})
-			msg := fmt.Sprintf("xychu: in reserve %s init state", pod.Name)
-			klog.V(0).Infof(msg)
-		}
-		state.Unlock()
-	}
-	return nil
 }
 
 // Permit is the functions invoked by the framework at "premit" extension point.
@@ -108,7 +66,7 @@ func (mc CoschedulingPlugin) Permit(state *framework.CycleState, pod *v1.Pod, no
 		if count < int32(targetCountInt32) {
 			msg := fmt.Sprintf("xychu: in Permit %s and %s/%s pods ready.", pod.Name, count, targetCount)
 			klog.V(0).Infof(msg)
-			return framework.NewStatus(framework.Wait, ""), 5 * time.Minute
+			return framework.NewStatus(framework.Wait, msg), 5 * time.Minute
 		}
 
 		allow := func(p framework.WaitingPod) {
@@ -120,22 +78,6 @@ func (mc CoschedulingPlugin) Permit(state *framework.CycleState, pod *v1.Pod, no
 		return nil, 0 * time.Second
 	}
 
-	//if name, okay := pod.ObjectMeta.Annotations["coschedule-name"]; okay {
-	//	targetCount, _ := pod.ObjectMeta.Annotations["coschedule-count"]
-	//	state.RLock()
-	//	defer state.RUnlock()
-	//	if v, e := state.Read(framework.StateKey(name)); e == nil {
-	//		if value, ok := v.(*stateData); ok && fmt.Sprint(value.readyCount) == targetCount {
-	//			msg := fmt.Sprintf("xychu: in Permit %s all pods are ready %v", pod.Name, value.readyPods)
-	//			klog.V(0).Infof(msg)
-	//			return framework.NewStatus(framework.Success, "All pods are ready."), 0 * time.Second
-	//		} else {
-	//			msg := fmt.Sprintf("xychu: in Peuurmit %s and %s/%s pods ready.", pod.Name, value.readyCount, targetCount)
-	//			klog.V(0).Infof(msg)
-	//			return framework.NewStatus(framework.Wait, "{}/{} pod(s) not ready"), 300 * time.Second
-	//		}
-	//	}
-	//}
 	msg = fmt.Sprintf("xychu: in Permit %s has no coschedule annotation", pod.Name)
 	klog.V(0).Infof(msg)
 	return framework.NewStatus(framework.Success, "No coscheduling annotation found."), 0 * time.Second
